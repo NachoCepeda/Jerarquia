@@ -64,6 +64,11 @@ function log(message) {
       return `${valStr} ${this.getSuitSymbol()}`;
     }
     getHierarchyValue() {
+      // Si es un As jugado como alto y es de CORAZONES, lo forzamos a ser la carta más fuerte.
+      if (this.value === 1 && this.asAlto && this.suit === "CORAZONES") {
+        return 10000;
+      }
+      // En otros casos, si es As jugado como alto se considera 12, sino se toma su valor natural.
       let cardValue = (this.value === 1 && this.asAlto) ? 12 : this.value;
       let suitValue = 0;
       switch (this.suit) {
@@ -74,6 +79,7 @@ function log(message) {
       }
       return cardValue + suitValue * 100;
     }
+    
   }
   
   // Función para crear y barajar la baraja
@@ -308,27 +314,40 @@ function log(message) {
         setupPlayers();
         return;
       }
-      promptUser("¿Quieres personalizar los nombres de los jugadores? (s/n): ").then(answer2 => {
-        let personalizar = ["s", "si", "sí"].includes(answer2.toLowerCase());
-        players = [];
-        if (personalizar) {
-          promptUser("Introduce tu nombre: ").then(name => {
-            if (name.trim() === "") name = "Jugador";
-            players.push(new Player(name, true));
-            createAIPlayers(num - 1, personalizar, 1).then(() => {
+      // Preguntar por el número de vidas
+      promptUser("¿Con cuántas vidas quieres jugar?: ").then(answerLives => {
+        let lives = parseInt(answerLives);
+        if (isNaN(lives) || lives <= 0) {
+          log("Número de vidas inválido. Se usará el valor por defecto 5.");
+          lives = 5;
+        }
+        promptUser("¿Quieres personalizar los nombres de los jugadores? (s/n): ").then(answer2 => {
+          let personalizar = ["s", "si", "sí"].includes(answer2.toLowerCase());
+          players = [];
+          if (personalizar) {
+            promptUser("Introduce tu nombre: ").then(name => {
+              if (name.trim() === "") name = "Jugador";
+              let p = new Player(name, true);
+              p.lives = lives;
+              players.push(p);
+              createAIPlayers(num - 1, personalizar, 1, lives).then(() => {
+                startRounds();
+              });
+            });
+          } else {
+            let p = new Player("Jugador", true);
+            p.lives = lives;
+            players.push(p);
+            createAIPlayers(num - 1, false, 1, lives).then(() => {
               startRounds();
             });
-          });
-        } else {
-          players.push(new Player("Jugador", true));
-          createAIPlayers(num - 1, false, 1).then(() => {
-            startRounds();
-          });
-        }
+          }
+        });
       });
     });
   }
-  function createAIPlayers(count, personalizar, startIndex) {
+  
+  function createAIPlayers(count, personalizar, startIndex, lives) {
     return new Promise((resolve) => {
       function createNext(i) {
         if (i >= count) {
@@ -338,17 +357,22 @@ function log(message) {
         if (personalizar) {
           promptUser(`Introduce el nombre del jugador ${i + startIndex + 1}: `).then(name => {
             if (name.trim() === "") name = `IA ${i + startIndex}`;
-            players.push(new Player(name, false));
+            let newPlayer = new Player(name, false);
+            newPlayer.lives = lives;
+            players.push(newPlayer);
             createNext(i + 1);
           });
         } else {
-          players.push(new Player(`IA ${i + startIndex}`, false));
+          let newPlayer = new Player(`IA ${i + startIndex}`, false);
+          newPlayer.lives = lives;
+          players.push(newPlayer);
           createNext(i + 1);
         }
       }
       createNext(0);
     });
   }
+  
   
   // Comienza una ronda
   function startRounds() {
